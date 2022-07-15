@@ -205,7 +205,7 @@ k9s info
 # |      < \____    /  ___/
 # |    |  \   /    /\___ \
 # |____|__ \ /____//____  >
-#         \/            \/
+#         \/     raf    \/
 #
 # Configuration:   ~/Library/Preferences/k9s/config.yml
 # Logs:            /var/folders/8c/hh6rqbgs5nx_c_8k9_17ghfh0000gn/T/k9s-fernand.log

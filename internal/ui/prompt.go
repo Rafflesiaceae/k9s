@@ -146,7 +146,8 @@ func (p *Prompt) keyboard(evt *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyEnter, tcell.KeyCtrlE:
 		p.model.SetText(p.model.GetText(), "")
 		p.model.SetActive(false)
-	case tcell.KeyCtrlW, tcell.KeyCtrlU:
+	// case tcell.KeyCtrlW, tcell.KeyCtrlU:
+	case tcell.KeyCtrlW:
 		p.model.ClearText(true)
 	case tcell.KeyUp:
 		if s, ok := m.NextSuggestion(); ok {
