@@ -31,7 +31,7 @@ func TestTableRefresh(t *testing.T) {
 	ctx := context.WithValue(context.Background(), internal.KeyFactory, f)
 	ctx = context.WithValue(ctx, internal.KeyFields, "")
 	ctx = context.WithValue(ctx, internal.KeyWithMetrics, false)
-	ta.Refresh(ctx)
+	assert.NoError(t, ta.Refresh(ctx))
 	data := ta.Peek()
 	assert.Equal(t, 22, len(data.Header))
 	assert.Equal(t, 1, len(data.RowEvents))
@@ -72,7 +72,7 @@ type tableListener struct {
 	count, errs int
 }
 
-func (l *tableListener) TableDataChanged(render.TableData) {
+func (l *tableListener) TableDataChanged(*render.TableData) {
 	l.count++
 }
 

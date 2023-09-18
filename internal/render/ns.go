@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/derailed/k9s/internal/client"
-	"github.com/gdamore/tcell/v2"
+	"github.com/derailed/tcell/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -66,7 +66,7 @@ func (n Namespace) Render(o interface{}, _ string, r *Row) error {
 		string(ns.Status.Phase),
 		mapToStr(ns.Labels),
 		asStatus(n.diagnose(ns.Status.Phase)),
-		toAge(ns.ObjectMeta.CreationTimestamp),
+		toAge(ns.GetCreationTimestamp()),
 	}
 
 	return nil

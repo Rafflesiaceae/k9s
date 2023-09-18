@@ -29,6 +29,9 @@ func NewNamespace() *Namespace {
 
 // Validate a namespace is setup correctly.
 func (n *Namespace) Validate(c client.Connection, ks KubeSettings) {
+	if c == nil {
+		return
+	}
 	nns, err := c.ValidNamespaces()
 	if err != nil {
 		return
@@ -48,10 +51,14 @@ func (n *Namespace) Validate(c client.Connection, ks KubeSettings) {
 
 // SetActive set the active namespace.
 func (n *Namespace) SetActive(ns string, ks KubeSettings) error {
+	if ns == client.NotNamespaced {
+		ns = client.AllNamespaces
+	}
 	n.Active = ns
 	if ns != "" && !n.LockFavorites {
 		n.addFavNS(ns)
 	}
+
 	return nil
 }
 

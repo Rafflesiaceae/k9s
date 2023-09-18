@@ -10,6 +10,7 @@ import (
 	"github.com/derailed/k9s/internal"
 	"github.com/derailed/k9s/internal/client"
 	"github.com/derailed/k9s/internal/config"
+	"github.com/derailed/k9s/internal/dao"
 	"github.com/derailed/k9s/internal/model"
 	"github.com/derailed/k9s/internal/render"
 	"github.com/derailed/k9s/internal/ui"
@@ -22,7 +23,7 @@ import (
 
 func TestTableSave(t *testing.T) {
 	v := NewTable(client.NewGVR("test"))
-	v.Init(makeContext())
+	assert.NoError(t, v.Init(makeContext()))
 	v.SetTitle("k9s-test")
 
 	dir := filepath.Join(v.app.Config.K9s.GetScreenDumpDir(), v.app.Config.K9s.CurrentCluster)
@@ -35,7 +36,7 @@ func TestTableSave(t *testing.T) {
 
 func TestTableNew(t *testing.T) {
 	v := NewTable(client.NewGVR("test"))
-	v.Init(makeContext())
+	assert.NoError(t, v.Init(makeContext()))
 
 	data := render.NewTableData()
 	data.Header = render.Header{
@@ -58,13 +59,13 @@ func TestTableNew(t *testing.T) {
 	}
 	data.Namespace = ""
 
-	v.Update(*data, false)
+	v.Update(data, false)
 	assert.Equal(t, 3, v.GetRowCount())
 }
 
 func TestTableViewFilter(t *testing.T) {
 	v := NewTable(client.NewGVR("test"))
-	v.Init(makeContext())
+	assert.NoError(t, v.Init(makeContext()))
 	v.SetModel(&mockTableModel{})
 	v.Refresh()
 	v.CmdBuff().SetActive(true)
@@ -75,7 +76,7 @@ func TestTableViewFilter(t *testing.T) {
 
 func TestTableViewSort(t *testing.T) {
 	v := NewTable(client.NewGVR("test"))
-	v.Init(makeContext())
+	assert.NoError(t, v.Init(makeContext()))
 	v.SetModel(&mockTableModel{})
 
 	uu := map[string]struct {
@@ -127,7 +128,7 @@ func (t *mockTableModel) SetLabelFilter(string)              {}
 func (t *mockTableModel) Empty() bool                        { return false }
 func (t *mockTableModel) Count() int                         { return 1 }
 func (t *mockTableModel) HasMetrics() bool                   { return true }
-func (t *mockTableModel) Peek() render.TableData             { return makeTableData() }
+func (t *mockTableModel) Peek() *render.TableData            { return makeTableData() }
 func (t *mockTableModel) Refresh(context.Context) error      { return nil }
 func (t *mockTableModel) ClusterWide() bool                  { return false }
 func (t *mockTableModel) GetNamespace() string               { return "blee" }
@@ -140,7 +141,7 @@ func (t *mockTableModel) Get(context.Context, string) (runtime.Object, error) {
 	return nil, nil
 }
 
-func (t *mockTableModel) Delete(context.Context, string, *metav1.DeletionPropagation, bool) error {
+func (t *mockTableModel) Delete(context.Context, string, *metav1.DeletionPropagation, dao.Grace) error {
 	return nil
 }
 
@@ -155,7 +156,7 @@ func (t *mockTableModel) ToYAML(ctx context.Context, path string) (string, error
 func (t *mockTableModel) InNamespace(string) bool      { return true }
 func (t *mockTableModel) SetRefreshRate(time.Duration) {}
 
-func makeTableData() render.TableData {
+func makeTableData() *render.TableData {
 	t := render.NewTableData()
 	t.Header = render.Header{
 		render.HeaderColumn{Name: "NAMESPACE"},
@@ -187,7 +188,7 @@ func makeTableData() render.TableData {
 		},
 	}
 
-	return *t
+	return t
 }
 
 func makeContext() context.Context {

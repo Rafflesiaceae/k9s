@@ -12,9 +12,20 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-var _ Describer = (*Generic)(nil)
+type Grace int64
 
-var defaultKillGrace int64
+const (
+	// DefaultGrace uses delete default termination policy.
+	DefaultGrace Grace = -1
+
+	// ForceGrace sets delete grace-period to 0.
+	ForceGrace Grace = 0
+
+	// NowGrace set delete grace-period to 1,
+	NowGrace Grace = 1
+)
+
+var _ Describer = (*Generic)(nil)
 
 // Generic represents a generic resource.
 type Generic struct {
@@ -90,7 +101,7 @@ func (g *Generic) ToYAML(path string, showManaged bool) (string, error) {
 }
 
 // Delete deletes a resource.
-func (g *Generic) Delete(path string, propagation *metav1.DeletionPropagation, force bool) error {
+func (g *Generic) Delete(ctx context.Context, path string, propagation *metav1.DeletionPropagation, grace Grace) error {
 	ns, n := client.Namespaced(path)
 	auth, err := g.Client().CanI(ns, g.gvr.String(), []string{client.DeleteVerb})
 	if err != nil {
@@ -100,26 +111,24 @@ func (g *Generic) Delete(path string, propagation *metav1.DeletionPropagation, f
 		return fmt.Errorf("user is not authorized to delete %s", path)
 	}
 
-	var grace *int64
-	if force {
-		grace = &defaultKillGrace
+	var gracePeriod *int64
+	if grace != DefaultGrace {
+		gracePeriod = (*int64)(&grace)
 	}
 	opts := metav1.DeleteOptions{
 		PropagationPolicy:  propagation,
-		GracePeriodSeconds: grace,
+		GracePeriodSeconds: gracePeriod,
 	}
 
 	dial, err := g.dynClient()
 	if err != nil {
 		return err
 	}
-	// BOZO!! Move to caller!
-	ctx, cancel := context.WithTimeout(context.Background(), g.Client().Config().CallTimeout())
-	defer cancel()
-
 	if client.IsClusterScoped(ns) {
 		return dial.Delete(ctx, n, opts)
 	}
+	ctx, cancel := context.WithTimeout(ctx, g.Client().Config().CallTimeout())
+	defer cancel()
 
 	return dial.Namespace(ns).Delete(ctx, n, opts)
 }

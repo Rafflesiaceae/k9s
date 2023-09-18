@@ -18,7 +18,9 @@ type K9s struct {
 	Logoless            bool                `yaml:"logoless"`
 	Crumbsless          bool                `yaml:"crumbsless"`
 	ReadOnly            bool                `yaml:"readOnly"`
+	NoExitOnCtrlC       bool                `yaml:"noExitOnCtrlC"`
 	NoIcons             bool                `yaml:"noIcons"`
+	SkipLatestRevCheck  bool                `yaml:"skipLatestRevCheck"`
 	Logger              *Logger             `yaml:"logger"`
 	CurrentContext      string              `yaml:"currentContext"`
 	CurrentCluster      string              `yaml:"currentCluster"`
@@ -46,8 +48,15 @@ func NewK9s() *K9s {
 	}
 }
 
+func (k *K9s) CurrentContextDir() string {
+	return SanitizeFilename(k.CurrentContext)
+}
+
 // ActivateCluster initializes the active cluster is not present.
 func (k *K9s) ActivateCluster(ns string) {
+	if k.Clusters == nil {
+		k.Clusters = map[string]*Cluster{}
+	}
 	if _, ok := k.Clusters[k.CurrentCluster]; ok {
 		return
 	}

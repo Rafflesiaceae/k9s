@@ -2,9 +2,8 @@ package view
 
 import (
 	"github.com/derailed/k9s/internal/client"
-	"github.com/derailed/k9s/internal/render"
 	"github.com/derailed/k9s/internal/ui"
-	"github.com/gdamore/tcell/v2"
+	"github.com/derailed/tcell/v2"
 )
 
 // PersistentVolumeClaim represents a PVC custom viewer.
@@ -18,7 +17,6 @@ func NewPersistentVolumeClaim(gvr client.GVR) ResourceViewer {
 		ResourceViewer: NewBrowser(gvr),
 	}
 	v.AddBindKeysFn(v.bindKeys)
-	v.GetTable().SetColorerFn(render.PersistentVolumeClaim{}.ColorerFunc())
 
 	return &v
 }

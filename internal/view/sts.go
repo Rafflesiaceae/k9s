@@ -5,7 +5,6 @@ import (
 
 	"github.com/derailed/k9s/internal/client"
 	"github.com/derailed/k9s/internal/dao"
-	"github.com/derailed/k9s/internal/render"
 	"github.com/derailed/k9s/internal/ui"
 	appsv1 "k8s.io/api/apps/v1"
 )
@@ -29,7 +28,6 @@ func NewStatefulSet(gvr client.GVR) ResourceViewer {
 	)
 	s.AddBindKeysFn(s.bindKeys)
 	s.GetTable().SetEnterFn(s.showPods)
-	s.GetTable().SetColorerFn(render.StatefulSet{}.ColorerFunc())
 
 	return &s
 }
@@ -50,7 +48,7 @@ func (s *StatefulSet) logOptions(prev bool) (*dao.LogOptions, error) {
 		co, dco string
 		allCos  bool
 	)
-	if c, ok := dao.GetDefaultLogContainer(sts.Spec.Template.ObjectMeta, sts.Spec.Template.Spec); ok {
+	if c, ok := dao.GetDefaultContainer(sts.Spec.Template.ObjectMeta, sts.Spec.Template.Spec); ok {
 		co, dco = c, c
 	} else if len(cc) == 1 {
 		co = cc[0].Name

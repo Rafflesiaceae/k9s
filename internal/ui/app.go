@@ -7,8 +7,8 @@ import (
 	"github.com/derailed/k9s/internal/client"
 	"github.com/derailed/k9s/internal/config"
 	"github.com/derailed/k9s/internal/model"
+	"github.com/derailed/tcell/v2"
 	"github.com/derailed/tview"
-	"github.com/gdamore/tcell/v2"
 	"github.com/rs/zerolog/log"
 )
 
@@ -151,7 +151,7 @@ func (a *App) bindKeys() {
 	}
 }
 
-// BailOut exists the application.
+// BailOut exits the application.
 func (a *App) BailOut() {
 	a.Stop()
 	os.Exit(0)
@@ -193,8 +193,12 @@ func (a *App) quitCmd(evt *tcell.EventKey) *tcell.EventKey {
 	if a.InCmdMode() {
 		return evt
 	}
-	a.BailOut()
 
+	if !a.Config.K9s.NoExitOnCtrlC {
+		a.BailOut()
+	}
+
+	// overwrite the default ctrl-c behavior of tview
 	return nil
 }
 

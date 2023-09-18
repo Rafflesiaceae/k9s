@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"strings"
 
 	"github.com/derailed/k9s/internal/client"
@@ -15,8 +16,8 @@ const ageTableCol = "Age"
 // Generic renders a generic resource to screen.
 type Generic struct {
 	Base
-	table *metav1beta1.Table
-
+	table    *metav1beta1.Table
+	header   Header
 	ageIndex int
 }
 
@@ -25,8 +26,9 @@ func (*Generic) IsGeneric() bool {
 }
 
 // SetTable sets the tabular resource.
-func (g *Generic) SetTable(t *metav1beta1.Table) {
+func (g *Generic) SetTable(ns string, t *metav1beta1.Table) {
 	g.table = t
+	g.header = g.Header(ns)
 }
 
 // ColorerFunc colors a resource row.
@@ -36,11 +38,16 @@ func (*Generic) ColorerFunc() ColorerFunc {
 
 // Header returns a header row.
 func (g *Generic) Header(ns string) Header {
+	if g.header != nil {
+		return g.header
+	}
 	if g.table == nil {
 		return Header{}
 	}
 	h := make(Header, 0, len(g.table.ColumnDefinitions))
-	h = append(h, HeaderColumn{Name: "NAMESPACE"})
+	if !client.IsClusterScoped(ns) {
+		h = append(h, HeaderColumn{Name: "NAMESPACE"})
+	}
 	for i, c := range g.table.ColumnDefinitions {
 		if c.Name == ageTableCol {
 			g.ageIndex = i
@@ -71,7 +78,9 @@ func (g *Generic) Render(o interface{}, ns string, r *Row) error {
 	}
 	r.ID = client.FQN(nns, name)
 	r.Fields = make(Fields, 0, len(g.Header(ns)))
-	r.Fields = append(r.Fields, nns)
+	if !client.IsClusterScoped(ns) {
+		r.Fields = append(r.Fields, nns)
+	}
 	var duration interface{}
 	for i, c := range row.Cells {
 		if g.ageIndex > 0 && i == g.ageIndex {
@@ -86,6 +95,8 @@ func (g *Generic) Render(o interface{}, ns string, r *Row) error {
 	}
 	if d, ok := duration.(string); ok {
 		r.Fields = append(r.Fields, d)
+	} else {
+		log.Warn().Msgf("No Duration detected on age field")
 	}
 
 	return nil

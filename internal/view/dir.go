@@ -11,10 +11,9 @@ import (
 	"github.com/derailed/k9s/internal"
 	"github.com/derailed/k9s/internal/client"
 	"github.com/derailed/k9s/internal/config"
-	"github.com/derailed/k9s/internal/render"
 	"github.com/derailed/k9s/internal/ui"
 	"github.com/derailed/k9s/internal/ui/dialog"
-	"github.com/gdamore/tcell/v2"
+	"github.com/derailed/tcell/v2"
 )
 
 const (
@@ -42,7 +41,6 @@ func NewDir(path string) ResourceViewer {
 	d.GetTable().SetSelectedStyle(tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorAliceBlue).Attributes(tcell.AttrNone))
 	d.AddBindKeysFn(d.bindKeys)
 	d.SetContextFn(d.dirContext)
-	d.GetTable().SetColorerFn(render.Dir{}.ColorerFunc())
 
 	return &d
 }
@@ -97,7 +95,7 @@ func (d *Dir) viewCmd(evt *tcell.EventKey) *tcell.EventKey {
 	}
 
 	details := NewDetails(d.App(), "YAML", sel, true).Update(string(yaml))
-	if err := d.App().inject(details); err != nil {
+	if err := d.App().inject(details, false); err != nil {
 		d.App().Flash().Err(err)
 	}
 
@@ -145,7 +143,7 @@ func (d *Dir) gotoCmd(evt *tcell.EventKey) *tcell.EventKey {
 	}
 
 	v := NewDir(sel)
-	if err := d.App().inject(v); err != nil {
+	if err := d.App().inject(v, false); err != nil {
 		d.App().Flash().Err(err)
 	}
 
@@ -217,7 +215,7 @@ func (d *Dir) applyCmd(evt *tcell.EventKey) *tcell.EventKey {
 		}
 
 		details := NewDetails(d.App(), "Applied Manifest", sel, true).Update(res)
-		if err := d.App().inject(details); err != nil {
+		if err := d.App().inject(details, false); err != nil {
 			d.App().Flash().Err(err)
 		}
 	}
@@ -231,13 +229,23 @@ func (d *Dir) delCmd(evt *tcell.EventKey) *tcell.EventKey {
 		return evt
 	}
 
+	opts := []string{"-f"}
+	msgRessource := "manifest"
+	if containsDir(sel) {
+		opts = append(opts, "-R")
+	}
+	if isKustomized(sel) {
+		opts = []string{"-k"}
+		msgRessource = "kustomization"
+	}
+
 	d.Stop()
 	defer d.Start()
-	msg := fmt.Sprintf("Delete resource(s) in manifest %s", sel)
+	msg := fmt.Sprintf("Delete resource(s) in %s %s", msgRessource, sel)
 	dialog.ShowConfirm(d.App().Styles.Dialog(), d.App().Content.Pages, "Confirm Delete", msg, func() {
 		args := make([]string, 0, 10)
 		args = append(args, "delete")
-		args = append(args, "-f")
+		args = append(args, opts...)
 		args = append(args, sel)
 		res, err := runKu(d.App(), shellOpts{clear: false, args: args})
 		if err != nil {
@@ -246,7 +254,7 @@ func (d *Dir) delCmd(evt *tcell.EventKey) *tcell.EventKey {
 			res = "message:\n" + fmtResults(res)
 		}
 		details := NewDetails(d.App(), "Deleted Manifest", sel, true).Update(res)
-		if err := d.App().inject(details); err != nil {
+		if err := d.App().inject(details, false); err != nil {
 			d.App().Flash().Err(err)
 		}
 	}, func() {})

@@ -33,9 +33,9 @@ var (
 )
 
 const (
-	logRetryCount                 = 20
-	logRetryWait                  = 1 * time.Second
-	defaultLogContainerAnnotation = "kubectl.kubernetes.io/default-logs-container"
+	logRetryCount              = 20
+	logRetryWait               = 1 * time.Second
+	defaultContainerAnnotation = "kubectl.kubernetes.io/default-container"
 )
 
 // Pod represents a pod resource.
@@ -163,7 +163,7 @@ func (p *Pod) Pod(fqn string) (string, error) {
 
 // GetInstance returns a pod instance.
 func (p *Pod) GetInstance(fqn string) (*v1.Pod, error) {
-	o, err := p.Factory.Get(p.gvr.String(), fqn, true, labels.Everything())
+	o, err := p.GetFactory().Get(p.gvr.String(), fqn, true, labels.Everything())
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (p *Pod) TailLogs(ctx context.Context, opts *LogOptions) ([]LogChan, error)
 	}
 
 	outs := make([]LogChan, 0, coCounts)
-	if co, ok := GetDefaultLogContainer(po.ObjectMeta, po.Spec); ok && !opts.AllContainers {
+	if co, ok := GetDefaultContainer(po.ObjectMeta, po.Spec); ok && !opts.AllContainers {
 		opts.DefaultContainer = co
 		return append(outs, tailLogs(ctx, p, opts)), nil
 	}
@@ -226,7 +226,7 @@ func (p *Pod) TailLogs(ctx context.Context, opts *LogOptions) ([]LogChan, error)
 // ScanSA scans for ServiceAccount refs.
 func (p *Pod) ScanSA(ctx context.Context, fqn string, wait bool) (Refs, error) {
 	ns, n := client.Namespaced(fqn)
-	oo, err := p.Factory.List(p.GVR(), ns, wait, labels.Everything())
+	oo, err := p.GetFactory().List(p.GVR(), ns, wait, labels.Everything())
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (p *Pod) ScanSA(ctx context.Context, fqn string, wait bool) (Refs, error) {
 		if len(pod.ObjectMeta.OwnerReferences) > 0 {
 			continue
 		}
-		if pod.Spec.ServiceAccountName == n {
+		if serviceAccountMatches(pod.Spec.ServiceAccountName, n) {
 			refs = append(refs, Ref{
 				GVR: p.GVR(),
 				FQN: client.FQN(pod.Namespace, pod.Name),
@@ -256,7 +256,7 @@ func (p *Pod) ScanSA(ctx context.Context, fqn string, wait bool) (Refs, error) {
 // Scan scans for cluster resource refs.
 func (p *Pod) Scan(ctx context.Context, gvr, fqn string, wait bool) (Refs, error) {
 	ns, n := client.Namespaced(fqn)
-	oo, err := p.Factory.List(p.GVR(), ns, wait, labels.Everything())
+	oo, err := p.GetFactory().List(p.GVR(), ns, wait, labels.Everything())
 	if err != nil {
 		return nil, err
 	}
@@ -296,6 +296,14 @@ func (p *Pod) Scan(ctx context.Context, gvr, fqn string, wait bool) (Refs, error
 			})
 		case "v1/persistentvolumeclaims":
 			if !hasPVC(&pod.Spec, n) {
+				continue
+			}
+			refs = append(refs, Ref{
+				GVR: p.GVR(),
+				FQN: client.FQN(pod.Namespace, pod.Name),
+			})
+		case "scheduling.k8s.io/v1/priorityclasses":
+			if !hasPC(&pod.Spec, n) {
 				continue
 			}
 			refs = append(refs, Ref{
@@ -478,16 +486,16 @@ func (p *Pod) isControlled(path string) (string, bool, error) {
 	return "", false, nil
 }
 
-// GetDefaultLogContainer returns a container name if specified in an annotation.
-func GetDefaultLogContainer(m metav1.ObjectMeta, spec v1.PodSpec) (string, bool) {
-	defaultContainer, ok := m.Annotations[defaultLogContainerAnnotation]
+// GetDefaultContainer returns a container name if specified in an annotation.
+func GetDefaultContainer(m metav1.ObjectMeta, spec v1.PodSpec) (string, bool) {
+	defaultContainer, ok := m.Annotations[defaultContainerAnnotation]
 	if ok {
 		for _, container := range spec.Containers {
 			if container.Name == defaultContainer {
 				return defaultContainer, true
 			}
 		}
-		log.Warn().Msg(defaultContainer + " container  not found. " + defaultLogContainerAnnotation + " annotation will be ignored")
+		log.Warn().Msg(defaultContainer + " container  not found. " + defaultContainerAnnotation + " annotation will be ignored")
 	}
 
 	return "", false

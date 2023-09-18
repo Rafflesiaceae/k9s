@@ -23,8 +23,6 @@ var (
 // Helm represents a helm chart.
 type Helm struct {
 	NonResource
-	cfg *action.Configuration
-	ns  string
 }
 
 // List returns a collection of resources.
@@ -33,7 +31,11 @@ func (h *Helm) List(ctx context.Context, ns string) ([]runtime.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	rr, err := action.NewList(cfg).Run()
+
+	list := action.NewList(cfg)
+	list.All = true
+	list.SetStateMask()
+	rr, err := list.Run()
 	if err != nil {
 		return nil, err
 	}
@@ -109,18 +111,18 @@ func (h *Helm) ToYAML(path string, showManaged bool) (string, error) {
 }
 
 // Delete uninstall a Helm.
-func (h *Helm) Delete(path string, _ *metav1.DeletionPropagation, force bool) error {
+func (h *Helm) Delete(_ context.Context, path string, _ *metav1.DeletionPropagation, _ Grace) error {
 	ns, n := client.Namespaced(path)
 	cfg, err := h.EnsureHelmConfig(ns)
 	if err != nil {
 		return err
 	}
-
-	res, err := action.NewUninstall(cfg).Run(n)
+	u := action.NewUninstall(cfg)
+	u.KeepHistory = true
+	res, err := u.Run(n)
 	if err != nil {
 		return err
 	}
-
 	if res != nil && res.Info != "" {
 		return fmt.Errorf("%s", res.Info)
 	}
@@ -130,14 +132,10 @@ func (h *Helm) Delete(path string, _ *metav1.DeletionPropagation, force bool) er
 
 // EnsureHelmConfig return a new configuration.
 func (h *Helm) EnsureHelmConfig(ns string) (*action.Configuration, error) {
-	if h.cfg != nil && h.ns == ns {
-		return h.cfg, nil
-	}
-	h.cfg = new(action.Configuration)
-	if err := h.cfg.Init(h.Client().Config().Flags(), ns, os.Getenv("HELM_DRIVER"), helmLogger); err != nil {
-		return nil, err
-	}
-	return h.cfg, nil
+	cfg := new(action.Configuration)
+	err := cfg.Init(h.Client().Config().Flags(), ns, os.Getenv("HELM_DRIVER"), helmLogger)
+
+	return cfg, err
 }
 
 func helmLogger(s string, args ...interface{}) {

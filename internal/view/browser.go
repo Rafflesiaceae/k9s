@@ -18,7 +18,7 @@ import (
 	"github.com/derailed/k9s/internal/render"
 	"github.com/derailed/k9s/internal/ui"
 	"github.com/derailed/k9s/internal/ui/dialog"
-	"github.com/gdamore/tcell/v2"
+	"github.com/derailed/tcell/v2"
 	"github.com/rs/zerolog/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -49,6 +49,11 @@ func (b *Browser) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	colorerFn := render.DefaultColorer
+	if r, ok := model.Registry[b.GVR().String()]; ok {
+		colorerFn = r.Renderer.ColorerFunc()
+	}
+	b.GetTable().SetColorerFn(colorerFn)
 
 	if err = b.Table.Init(ctx); err != nil {
 		return err
@@ -222,7 +227,7 @@ func (b *Browser) Aliases() []string {
 // Model Protocol...
 
 // TableDataChanged notifies view new data is available.
-func (b *Browser) TableDataChanged(data render.TableData) {
+func (b *Browser) TableDataChanged(data *render.TableData) {
 	var cancel context.CancelFunc
 	b.mx.RLock()
 	cancel = b.cancelFn
@@ -256,7 +261,7 @@ func (b *Browser) viewCmd(evt *tcell.EventKey) *tcell.EventKey {
 	}
 
 	v := NewLiveView(b.app, "YAML", model.NewYAML(b.GVR(), path))
-	if err := v.app.inject(v); err != nil {
+	if err := v.app.inject(v, false); err != nil {
 		v.app.Flash().Err(err)
 	}
 	return nil
@@ -459,7 +464,7 @@ func (b *Browser) defaultContext() context.Context {
 }
 
 func (b *Browser) refreshActions() {
-	if b.App().Content.Top().Name() != b.Name() {
+	if b.App().Content.Top() != nil && b.App().Content.Top().Name() != b.Name() {
 		return
 	}
 	aa := ui.KeyActions{
@@ -520,14 +525,13 @@ func (b *Browser) simpleDelete(selections []string, msg string) {
 		} else {
 			b.app.Flash().Infof("Delete resource %s %s", b.GVR(), selections[0])
 		}
-		log.Debug().Msgf("SELS %v", selections)
 		for _, sel := range selections {
 			nuker, ok := b.accessor.(dao.Nuker)
 			if !ok {
 				b.app.Flash().Errf("Invalid nuker %T", b.accessor)
 				continue
 			}
-			if err := nuker.Delete(sel, nil, true); err != nil {
+			if err := nuker.Delete(context.Background(), sel, nil, dao.DefaultGrace); err != nil {
 				b.app.Flash().Errf("Delete failed with `%s", err)
 			} else {
 				b.app.factory.DeleteForwarder(sel)
@@ -547,7 +551,11 @@ func (b *Browser) resourceDelete(selections []string, msg string) {
 			b.app.Flash().Infof("Delete resource %s %s", b.GVR(), selections[0])
 		}
 		for _, sel := range selections {
-			if err := b.GetModel().Delete(b.defaultContext(), sel, propagation, force); err != nil {
+			grace := dao.DefaultGrace
+			if force {
+				grace = dao.ForceGrace
+			}
+			if err := b.GetModel().Delete(b.defaultContext(), sel, propagation, grace); err != nil {
 				b.app.Flash().Errf("Delete failed with `%s", err)
 			} else {
 				b.app.factory.DeleteForwarder(sel)

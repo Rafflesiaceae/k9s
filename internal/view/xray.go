@@ -16,10 +16,12 @@ import (
 	"github.com/derailed/k9s/internal/ui"
 	"github.com/derailed/k9s/internal/ui/dialog"
 	"github.com/derailed/k9s/internal/xray"
+	"github.com/derailed/tcell/v2"
 	"github.com/derailed/tview"
-	"github.com/gdamore/tcell/v2"
 	"github.com/rs/zerolog/log"
 	"github.com/sahilm/fuzzy"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -72,7 +74,7 @@ func (x *Xray) Init(ctx context.Context) error {
 	x.SetBorderColor(x.app.Styles.Xray().FgColor.Color())
 	x.SetBorderFocusColor(x.app.Styles.Frame().Border.FocusColor.Color())
 	x.SetGraphicsColor(x.app.Styles.Xray().GraphicColor.Color())
-	x.SetTitle(fmt.Sprintf(" %s-%s ", xrayTitle, strings.Title(x.gvr.R())))
+	x.SetTitle(fmt.Sprintf(" %s-%s ", xrayTitle, cases.Title(language.Und, cases.NoLower).String(x.gvr.R())))
 
 	x.model.SetRefreshRate(time.Duration(x.app.Config.K9s.GetRefreshRate()) * time.Second)
 	x.model.SetNamespace(client.CleanseNamespace(x.app.Config.ActiveNamespace()))
@@ -272,7 +274,7 @@ func (x *Xray) showLogs(spec *xray.NodeSpec, prev bool) {
 		Container: co,
 		Previous:  prev,
 	}
-	if err := x.app.inject(NewLog(client.NewGVR("v1/pods"), &opts)); err != nil {
+	if err := x.app.inject(NewLog(client.NewGVR("v1/pods"), &opts), false); err != nil {
 		x.app.Flash().Err(err)
 	}
 }
@@ -338,7 +340,7 @@ func (x *Xray) viewCmd(evt *tcell.EventKey) *tcell.EventKey {
 	}
 
 	details := NewDetails(x.app, "YAML", spec.Path(), true).Update(raw)
-	if err := x.app.inject(details); err != nil {
+	if err := x.app.inject(details, false); err != nil {
 		x.app.Flash().Err(err)
 	}
 
@@ -388,7 +390,7 @@ func (x *Xray) describe(gvr, path string) {
 	}
 
 	details := NewDetails(x.app, "Describe", path, true).Update(yaml)
-	if err := x.app.inject(details); err != nil {
+	if err := x.app.inject(details, false); err != nil {
 		x.app.Flash().Err(err)
 	}
 }
@@ -632,7 +634,7 @@ func (x *Xray) UpdateTitle() {
 }
 
 func (x *Xray) styleTitle() string {
-	base := fmt.Sprintf("%s-%s", xrayTitle, strings.Title(x.gvr.R()))
+	base := fmt.Sprintf("%s-%s", xrayTitle, cases.Title(language.Und, cases.NoLower).String(x.gvr.R()))
 	ns := x.model.GetNamespace()
 	if client.IsAllNamespaces(ns) {
 		ns = client.NamespaceAll
@@ -670,7 +672,11 @@ func (x *Xray) resourceDelete(gvr client.GVR, spec *xray.NodeSpec, msg string) {
 			x.app.Flash().Errf("Invalid nuker %T", accessor)
 			return
 		}
-		if err := nuker.Delete(spec.Path(), nil, true); err != nil {
+		grace := dao.DefaultGrace
+		if force {
+			grace = dao.ForceGrace
+		}
+		if err := nuker.Delete(context.Background(), spec.Path(), nil, grace); err != nil {
 			x.app.Flash().Errf("Delete failed with `%s", err)
 		} else {
 			x.app.Flash().Infof("%s `%s deleted successfully", x.GVR(), spec.Path())
